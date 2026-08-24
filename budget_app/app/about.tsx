@@ -20,6 +20,11 @@ const POINTS = [
     body: 'There is nothing to sign up for and no analytics, crash reporting or identifiers collected.',
   },
   {
+    icon: '🔐',
+    title: 'Locked to you',
+    body: 'An optional PIN — with Face ID or a fingerprint if your phone has one — keeps anyone holding your unlocked phone out of your finances. The PIN is stored in the device keychain and never appears in a backup file.',
+  },
+  {
     icon: '💾',
     title: 'Your data is yours',
     body: 'Export a full JSON backup or a CSV of your transactions whenever you want, and restore it on any device.',

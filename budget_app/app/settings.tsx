@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Alert, Pressable, Switch, View } from 'react-native';
 
 import { exportBackup, exportCSV, importBackup } from '../src/lib/backup.ts';
+import { AUTO_LOCK_CHOICES } from '../src/lib/lock.ts';
 import { COMMON_CURRENCIES, createInitialData } from '../src/lib/defaults.ts';
 import { pad2 } from '../src/lib/dates.ts';
 import { createId } from '../src/lib/id.ts';
@@ -19,7 +20,9 @@ import {
   Spacer,
   Txt,
 } from '../src/components/ui.tsx';
+import { isSecureStorageAvailable } from '../src/storage/lock.ts';
 import { clearData } from '../src/storage/repository.ts';
+import { useLock } from '../src/state/lockContext.tsx';
 import { useApp } from '../src/state/store.tsx';
 import { spacing } from '../src/theme/index.ts';
 import type { ThemePreference } from '../src/types.ts';
@@ -30,7 +33,19 @@ const REMINDER_HOURS = [7, 8, 9, 12, 18, 20];
 export default function SettingsScreen() {
   const router = useRouter();
   const { data, updateSettings, dispatch, theme } = useApp();
+  const lock = useLock();
   const [busy, setBusy] = useState<string | null>(null);
+
+  async function startLockSetup() {
+    if (!(await isSecureStorageAvailable())) {
+      Alert.alert(
+        'Secure storage unavailable',
+        "This device won't let the app store a PIN in its secure keychain, so the lock can't be turned on here."
+      );
+      return;
+    }
+    router.push('/lock-setup?mode=new');
+  }
 
   async function runExport(kind: 'json' | 'csv') {
     setBusy(kind);
@@ -150,6 +165,81 @@ export default function SettingsScreen() {
                   />
                 ))}
               </Row>
+            </>
+          ) : null}
+        </Card>
+
+        <Spacer />
+
+        <Card>
+          <Row justify="space-between">
+            <View style={{ flex: 1, paddingRight: spacing.md }}>
+              <Txt variant="heading">App lock</Txt>
+              <Txt variant="caption" tone="muted" style={{ marginTop: 4 }}>
+                {lock.config.enabled
+                  ? 'A PIN is required to open the app.'
+                  : 'Ask for a PIN before showing your finances.'}
+              </Txt>
+            </View>
+            <Switch
+              value={lock.config.enabled}
+              onValueChange={(next) =>
+                next ? void startLockSetup() : router.push('/lock-setup?mode=off')
+              }
+              trackColor={{ true: theme.colors.primary, false: theme.colors.track }}
+            />
+          </Row>
+
+          {lock.config.enabled ? (
+            <>
+              <Spacer size={spacing.lg} />
+              <Divider />
+              <Spacer size={spacing.lg} />
+
+              {lock.biometric.usable ? (
+                <>
+                  <Row justify="space-between">
+                    <View style={{ flex: 1, paddingRight: spacing.md }}>
+                      <Txt variant="body">Unlock with {lock.biometric.label}</Txt>
+                      <Txt variant="caption" tone="faint">
+                        The PIN still works as a fallback.
+                      </Txt>
+                    </View>
+                    <Switch
+                      value={lock.config.biometrics}
+                      onValueChange={(next) => void lock.update({ biometrics: next })}
+                      trackColor={{ true: theme.colors.primary, false: theme.colors.track }}
+                    />
+                  </Row>
+                  <Spacer size={spacing.lg} />
+                </>
+              ) : null}
+
+              <Txt variant="label" tone="muted" style={{ marginBottom: spacing.sm }}>
+                Lock again
+              </Txt>
+              <Row gap={spacing.sm} style={{ flexWrap: 'wrap' }}>
+                {AUTO_LOCK_CHOICES.map((choice) => (
+                  <Chip
+                    key={choice.seconds}
+                    label={choice.label}
+                    selected={lock.config.autoLockSeconds === choice.seconds}
+                    onPress={() => void lock.update({ autoLockSeconds: choice.seconds })}
+                  />
+                ))}
+              </Row>
+              <Txt variant="caption" tone="faint" style={{ marginTop: spacing.sm }}>
+                How long the app may sit in the background before it asks again.
+              </Txt>
+
+              <Spacer size={spacing.lg} />
+              <Button
+                label="Change PIN"
+                variant="secondary"
+                onPress={() => router.push('/lock-setup?mode=change')}
+              />
+              <Spacer size={spacing.sm} />
+              <Button label="Lock now" variant="secondary" onPress={lock.lockNow} />
             </>
           ) : null}
         </Card>

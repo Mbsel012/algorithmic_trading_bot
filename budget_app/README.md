@@ -18,6 +18,9 @@ you enter is stored on the device and nowhere else.
   for the period, and the biggest single expenses.
 - **Savings goals** — targets with optional deadlines, contribution history and
   the monthly amount needed to arrive on time.
+- **App lock** — an optional 4-8 digit PIN, plus Face ID or fingerprint where the
+  device supports it, with an auto-lock delay and an escalating wait after
+  repeated wrong entries.
 - **Your data stays yours** — export a full JSON backup or a CSV of transactions
   at any time, restore a backup on any device, or erase everything.
 
@@ -78,3 +81,10 @@ directly with `node --test`.
 The app makes no network requests. There is no ad SDK, no crash reporter, no
 analytics and no identifier of any kind. Because nothing is synced, uninstalling
 the app deletes your data — export a backup before switching devices.
+
+The app lock is a privacy screen, not a vault: it stops someone holding your
+unlocked phone from reading your finances. Protection against someone who can
+extract the device's storage comes from the phone's own disk encryption, which
+a short numeric PIN could not meaningfully add to. The PIN is stored as a
+salted, repeatedly-hashed digest in the iOS Keychain / Android Keystore — never
+in the app's data, and so never inside a backup file you might share.
