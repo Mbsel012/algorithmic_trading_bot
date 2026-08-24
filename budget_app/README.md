@@ -67,8 +67,27 @@ npm test            # unit tests for the money, date, budget and rule logic
 npx expo export --platform android --output-dir /tmp/export   # bundles cleanly
 ```
 
-Building installable binaries needs Expo's build tooling (`eas build`) or a
-local Xcode / Android Studio setup — this repository holds the app source only.
+### Real builds (EAS)
+
+The project is already linked to its EAS project — `eas.json` and the project
+id in `app.json` are committed, so there is no need to run `eas init`. Log in
+once, then build:
+
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest build --profile development --platform android
+```
+
+Three profiles are defined:
+
+| Profile | What it is for |
+|---|---|
+| `development` | A dev client. Use this to test the things Expo Go cannot run — bill alarms, calendar writing, Face ID / fingerprint. |
+| `preview` | An installable build for sharing; Android comes out as a plain APK you can sideload. |
+| `production` | Store-ready builds, with the build number incremented by EAS. |
+
+Building for the App Store or Play Store additionally needs a paid Apple
+Developer account or a Google Play developer account.
 
 ## Layout
 
