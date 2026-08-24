@@ -43,6 +43,9 @@ month, which matters if your month effectively starts on payday.
 
 ## Running it
 
+Node 22.18 or newer is required — the test suite is TypeScript run directly
+through `node --test`, which relies on built-in type stripping.
+
 ```bash
 npm install
 npm start           # then scan the QR code with Expo Go, or press i / a
@@ -56,11 +59,12 @@ npm run ios         # iOS simulator (macOS only)
 npm run web         # the same app in a browser
 ```
 
-Checks:
+Checks — the same three CI runs on every pull request:
 
 ```bash
-npm test            # unit tests for the money, date, budget and rule logic
 npm run typecheck   # TypeScript, app and tests
+npm test            # unit tests for the money, date, budget and rule logic
+npx expo export --platform android --output-dir /tmp/export   # bundles cleanly
 ```
 
 Building installable binaries needs Expo's build tooling (`eas build`) or a
@@ -84,8 +88,14 @@ src/
   storage/              AsyncStorage persistence, validation, import/export
   components/           shared UI and the charts (react-native-svg)
   theme/                colour, spacing and type scales
+tools/                  build-time scripts (icon generation)
 tests/                  unit tests for everything under src/lib and src/state
 ```
+
+Every app icon — iOS, the Android adaptive layers, the themed monochrome
+layer, splash and favicon — is generated from a single SVG mark by
+`tools/generate-icons.mjs`, so changing the artwork means editing one file
+rather than re-exporting six PNGs by hand.
 
 Everything under `src/lib` and `src/state/reducer.ts` is free of React and of
 React Native imports, which is what lets the whole rule set — month-end

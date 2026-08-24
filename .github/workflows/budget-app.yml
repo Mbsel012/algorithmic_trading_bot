@@ -1,0 +1,58 @@
+# Checks for the Pocketbook budget app (budget_app/).
+#
+# Scoped by path so it stays out of the way of the Python trading bot that
+# shares this repository — it only runs when the app itself changes.
+name: Budget app
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'budget_app/**'
+      - '.github/workflows/budget-app.yml'
+  pull_request:
+    paths:
+      - 'budget_app/**'
+      - '.github/workflows/budget-app.yml'
+  workflow_dispatch:
+
+# Superseded runs on the same branch are pointless; cancel them.
+concurrency:
+  group: budget-app-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: budget_app
+
+jobs:
+  check:
+    name: Types, tests and bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22.18+ is required: the tests are TypeScript run directly through
+      # `node --test`, which relies on built-in type stripping.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: budget_app/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck app and tests
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # Catches anything that typechecks but cannot actually be bundled —
+      # a bad import path, a missing asset, a broken Babel config.
+      - name: Bundle for Android
+        run: npx expo export --platform android --output-dir "${RUNNER_TEMP}/expo-export"
+        env:
+          EXPO_NO_TELEMETRY: '1'
