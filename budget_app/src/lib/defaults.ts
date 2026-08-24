@@ -1,8 +1,9 @@
 /** Seed data used the first time the app launches. */
 
-import type { AppData, Category, Settings } from '../types.ts';
+import type { AppData, Category, RateTable, Settings } from '../types.ts';
 
-export const SCHEMA_VERSION = 1;
+/** Bumped when the stored shape changes in a way `normalise` has to handle. */
+export const SCHEMA_VERSION = 2;
 
 /**
  * Categorical palette for charts and chips, in fixed assignment order.
@@ -43,10 +44,24 @@ export const DEFAULT_CATEGORY_SEEDS: Seed[] = [
   { name: 'Gifts', icon: '🎁', color: '#9333EA', kind: 'income', archived: false },
 ];
 
+export const DEFAULT_RATES: RateTable = {
+  base: 'USD',
+  rates: { USD: 1 },
+  updatedAt: null,
+  source: 'manual',
+};
+
 export const DEFAULT_SETTINGS: Settings = {
   currency: 'USD',
   locale: 'en-US',
   theme: 'system',
+  countryCode: null,
+  taxRate: 0,
+  taxLabel: 'Tax',
+  taxMode: 'inclusive',
+  calendarEnabled: false,
+  calendarId: null,
+  onlineRatesEnabled: false,
   monthStartDay: 1,
   remindersEnabled: true,
   reminderHour: 9,
@@ -62,6 +77,7 @@ export function createInitialData(makeId: () => string): AppData {
     budgets: [],
     recurring: [],
     goals: [],
+    rates: { ...DEFAULT_RATES, rates: { ...DEFAULT_RATES.rates } },
     settings: { ...DEFAULT_SETTINGS },
   };
 }

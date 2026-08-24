@@ -52,6 +52,12 @@
         {
           "faceIDPermission": "Allow Pocketbook to unlock with Face ID."
         }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Pocketbook adds your bills to a calendar on this device so you get a reminder."
+        }
       ]
     ],
     "experiments": {

@@ -14,6 +14,7 @@ import type {
   Category,
   Goal,
   GoalContribution,
+  RateTable,
   RecurringRule,
   Settings,
   Transaction,
@@ -41,7 +42,8 @@ export type Action =
   | { type: 'goal/delete'; id: string }
   | { type: 'goal/contribute'; goalId: string; contribution: GoalContribution }
   | { type: 'goal/removeContribution'; goalId: string; contributionId: string }
-  | { type: 'settings/update'; patch: Partial<Settings> };
+  | { type: 'settings/update'; patch: Partial<Settings> }
+  | { type: 'rates/set'; table: RateTable };
 
 function replaceById<T extends { id: string }>(items: T[], next: T): T[] {
   let found = false;
@@ -196,6 +198,9 @@ export function reducer(state: AppData, action: Action): AppData {
 
     case 'settings/update':
       return { ...state, settings: { ...state.settings, ...action.patch } };
+
+    case 'rates/set':
+      return { ...state, rates: action.table };
 
     default:
       return state;

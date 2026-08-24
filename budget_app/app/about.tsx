@@ -11,8 +11,13 @@ const POINTS = [
   },
   {
     icon: '📴',
-    title: 'No network access',
-    body: 'The app makes no network requests at all. Your transactions, budgets and goals never leave the device they were typed into.',
+    title: 'Offline unless you say otherwise',
+    body: 'Out of the box the app makes no network requests at all. The single exception is optional: if you switch on online exchange rates, tapping refresh asks a public rates service for the day\u2019s rates. That request carries none of your data — though the service sees your IP address, as any website would. Your transactions, budgets and goals never leave this device either way.',
+  },
+  {
+    icon: '📅',
+    title: 'Calendar stays on your terms',
+    body: 'If you ask it to, the app writes your bills into a calendar on this device. It only ever touches the calendar you choose, and nothing else. Where that calendar syncs to afterwards is your own account setting.',
   },
   {
     icon: '🙈',

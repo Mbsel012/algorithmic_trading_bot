@@ -107,3 +107,92 @@ test('CSV export escapes quotes and signs expenses negative', () => {
   assert.ok(csv[2].includes('"Lunch, with ""friends"""'));
   assert.ok(csv[2].endsWith(',-12.50'));
 });
+
+test('a version 1 backup, with no rates or tax settings, still loads', () => {
+  // Exactly the shape the app wrote before currencies and tax existed.
+  const legacy = {
+    schemaVersion: 1,
+    categories: [{ id: 'c1', name: 'Food', icon: '🍽️', color: '#f00', kind: 'expense', archived: false }],
+    transactions: [{ id: 't1', amount: 1250, kind: 'expense', categoryId: 'c1', date: '2026-03-01', note: '' }],
+    budgets: [],
+    recurring: [
+      {
+        id: 'r1', name: 'Rent', amount: 100000, kind: 'expense', categoryId: 'c1',
+        frequency: 'monthly', startDate: '2026-01-01', endDate: null, lastPostedDate: null,
+        autoPost: true, reminderDaysBefore: 1, active: true,
+      },
+    ],
+    goals: [],
+    settings: { currency: 'GBP', locale: 'en-GB', theme: 'dark', monthStartDay: 25 },
+  };
+  const data = normalise(legacy, makeId);
+
+  // Nothing from the old file is lost.
+  assert.equal(data.transactions.length, 1);
+  assert.equal(data.settings.currency, 'GBP');
+  assert.equal(data.settings.monthStartDay, 25);
+
+  // The new fields arrive with safe defaults rather than undefined.
+  assert.equal(data.recurring[0].alarm, false);
+  assert.equal(data.recurring[0].addToCalendar, false);
+  assert.equal(data.settings.countryCode, null);
+  assert.equal(data.settings.taxRate, 0);
+  assert.equal(data.settings.calendarEnabled, false);
+  // Crucially, the network toggle defaults to off on an upgrade.
+  assert.equal(data.settings.onlineRatesEnabled, false);
+  assert.equal(data.rates.base, 'USD');
+  assert.equal(data.rates.rates.USD, 1);
+});
+
+test('stored rates survive a round trip and bad ones are dropped', () => {
+  const data = normalise(
+    {
+      categories: [{ id: 'c1', name: 'Food', icon: '🍽️', color: '#f00', kind: 'expense', archived: false }],
+      rates: {
+        base: 'eur',
+        rates: { USD: 1.08, GBP: 0.86, BAD: 0, WORSE: -1, TOOLONG: 5, JPY: 'x' },
+        updatedAt: '2026-08-01T00:00:00.000Z',
+        source: 'network',
+      },
+    },
+    makeId
+  );
+  assert.equal(data.rates.base, 'EUR');
+  assert.deepEqual(Object.keys(data.rates.rates).sort(), ['EUR', 'GBP', 'USD']);
+  assert.equal(data.rates.rates.EUR, 1);
+  assert.equal(data.rates.source, 'network');
+});
+
+test('a foreign-currency transaction keeps what was actually paid', () => {
+  const data = normalise(
+    {
+      categories: [{ id: 'c1', name: 'Food', icon: '🍽️', color: '#f00', kind: 'expense', archived: false }],
+      transactions: [
+        {
+          id: 't1', amount: 1000, kind: 'expense', categoryId: 'c1', date: '2026-03-01', note: '',
+          original: { amount: 57500, currency: 'etb', rate: 0.0174 },
+          taxAmount: 150,
+        },
+      ],
+    },
+    makeId
+  );
+  assert.deepEqual(data.transactions[0].original, { amount: 57500, currency: 'ETB', rate: 0.0174 });
+  assert.equal(data.transactions[0].taxAmount, 150);
+});
+
+test('an unusable original block is dropped, keeping the home-currency amount', () => {
+  const data = normalise(
+    {
+      categories: [{ id: 'c1', name: 'Food', icon: '🍽️', color: '#f00', kind: 'expense', archived: false }],
+      transactions: [
+        { id: 't1', amount: 1000, kind: 'expense', categoryId: 'c1', date: '2026-03-01', original: { amount: 5, currency: 'ETB', rate: 0 } },
+        { id: 't2', amount: 2000, kind: 'expense', categoryId: 'c1', date: '2026-03-01', original: { currency: 'ETB' } },
+      ],
+    },
+    makeId
+  );
+  assert.equal(data.transactions[0].original, undefined);
+  assert.equal(data.transactions[0].amount, 1000);
+  assert.equal(data.transactions[1].original, undefined);
+});

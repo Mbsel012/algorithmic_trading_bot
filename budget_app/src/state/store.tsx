@@ -15,6 +15,7 @@ import React, {
 } from 'react';
 import { AppState, useColorScheme } from 'react-native';
 
+import { convert as convertMoney } from '../lib/currency.ts';
 import { createInitialData } from '../lib/defaults.ts';
 import { periodFor, today, type Period } from '../lib/dates.ts';
 import { createId } from '../lib/id.ts';
@@ -32,6 +33,11 @@ type Ctx = {
   /** Format cents with the user's currency and locale. */
   money: (cents: number, options?: { signed?: boolean; compact?: boolean }) => string;
   categoryById: (id: string) => Category | undefined;
+  /**
+   * Convert into the user's home currency. Returns null when no rate links the
+   * two, so callers show "no rate" rather than a silently wrong number.
+   */
+  toHomeCurrency: (amount: number, from: string) => number | null;
   /** The budget period containing today, honouring the month-start setting. */
   currentPeriod: Period;
   updateSettings: (patch: Partial<Settings>) => void;
@@ -106,6 +112,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
   const categoryById = useCallback((id: string) => categoryIndex.get(id), [categoryIndex]);
 
+  const toHomeCurrency = useCallback(
+    (amount: number, from: string) =>
+      from.toUpperCase() === settings.currency
+        ? amount
+        : convertMoney(amount, from, settings.currency, data.rates),
+    [settings.currency, data.rates]
+  );
+
   const currentPeriod = useMemo(
     () => periodFor(today(), settings.monthStartDay, settings.locale),
     [settings.monthStartDay, settings.locale]
@@ -117,8 +131,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo<Ctx>(
-    () => ({ data, ready, dispatch, theme, money, categoryById, currentPeriod, updateSettings }),
-    [data, ready, theme, money, categoryById, currentPeriod, updateSettings]
+    () => ({
+      data,
+      ready,
+      dispatch,
+      theme,
+      money,
+      categoryById,
+      toHomeCurrency,
+      currentPeriod,
+      updateSettings,
+    }),
+    [data, ready, theme, money, categoryById, toHomeCurrency, currentPeriod, updateSettings]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

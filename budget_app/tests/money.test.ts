@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { distribute, formatMoney, parseAmount, ratio, toDecimalString } from '../src/lib/money.ts';
+import { decimalsFor, distribute, formatMoney, parseAmount, ratio, toDecimalString } from '../src/lib/money.ts';
 
 test('parseAmount reads the formats people actually type', () => {
   assert.equal(parseAmount('12'), 1200);
@@ -58,4 +58,26 @@ test('distribute splits without losing or inventing cents', () => {
   assert.equal(distribute(1000, 7).reduce((a, b) => a + b, 0), 1000);
   assert.equal(distribute(-100, 3).reduce((a, b) => a + b, 0), -100);
   assert.deepEqual(distribute(50, 0), []);
+});
+
+test('currencies with no minor unit are not multiplied by a hundred', () => {
+  assert.equal(parseAmount('1550', 'JPY'), 1550);
+  assert.equal(toDecimalString(1550, 'JPY'), '1550');
+  assert.equal(formatMoney(1550, 'JPY', 'en-US'), '¥1,550');
+});
+
+test('three-decimal currencies keep their third digit', () => {
+  assert.equal(parseAmount('30.7', 'KWD'), 30700);
+  assert.equal(toDecimalString(30700, 'KWD'), '30.700');
+  for (const code of ['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND']) {
+    assert.equal(decimalsFor(code), 3, code);
+  }
+});
+
+test('minor units round-trip for every scale', () => {
+  for (const code of ['USD', 'JPY', 'KWD', 'EUR', 'XOF']) {
+    for (const minor of [0, 1, 7, 12345]) {
+      assert.equal(parseAmount(toDecimalString(minor, code), code), minor, `${code} ${minor}`);
+    }
+  }
 });

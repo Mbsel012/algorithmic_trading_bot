@@ -24,6 +24,8 @@ function rule(overrides: Partial<RecurringRule> = {}): RecurringRule {
     lastPostedDate: null,
     autoPost: true,
     reminderDaysBefore: 2,
+    alarm: false,
+    addToCalendar: false,
     active: true,
     ...overrides,
   };

@@ -4,30 +4,50 @@
  * human-facing decimal string.
  */
 
-const MINOR_UNITS_PER_MAJOR = 100;
+/**
+ * Currencies whose minor unit is not 1/100.
+ *
+ * Assuming two decimals everywhere is wrong for a large part of the world: it
+ * would multiply every yen amount by a hundred and divide every Kuwaiti dinar
+ * by ten. Both lists follow ISO 4217.
+ */
+const ZERO_DECIMAL = new Set([
+  'BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF',
+  'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF',
+]);
 
-/** Currencies with no decimal subunit — these are the common ones. */
-const ZERO_DECIMAL = new Set(['JPY', 'KRW', 'VND', 'CLP', 'ISK', 'UGX', 'RWF', 'XAF', 'XOF']);
+const THREE_DECIMAL = new Set(['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND']);
 
 export function decimalsFor(currency: string): number {
-  return ZERO_DECIMAL.has(currency.toUpperCase()) ? 0 : 2;
+  const code = currency.toUpperCase();
+  if (ZERO_DECIMAL.has(code)) return 0;
+  if (THREE_DECIMAL.has(code)) return 3;
+  return 2;
 }
 
-/** Parse free-form user input ("12", "12.5", "1,234.56", "-3") into cents. */
-export function parseAmount(input: string): number | null {
+/** Minor units in one major unit of `currency` — 1, 100 or 1000. */
+export function minorUnitsPer(currency: string): number {
+  return 10 ** decimalsFor(currency);
+}
+
+/**
+ * Parse free-form user input ("12", "12.5", "1,234.56", "-3") into minor units.
+ *
+ * The currency decides the scale, so the same "12.5" is 1250 in dollars, 12 in
+ * yen and 12500 in dinars.
+ */
+export function parseAmount(input: string, currency = 'USD'): number | null {
   const cleaned = input.replace(/[\s ]/g, '').replace(/,/g, '.');
   if (cleaned === '' || cleaned === '.' || cleaned === '-') return null;
   if (!/^-?\d*\.?\d*$/.test(cleaned)) return null;
   const value = Number(cleaned);
   if (!Number.isFinite(value)) return null;
-  return Math.round(value * MINOR_UNITS_PER_MAJOR);
+  return Math.round(value * minorUnitsPer(currency));
 }
 
-/** Cents -> plain decimal string, no currency symbol. Used in text inputs. */
-export function toDecimalString(cents: number, currency = 'USD'): string {
-  const digits = decimalsFor(currency);
-  const value = cents / MINOR_UNITS_PER_MAJOR;
-  return value.toFixed(digits);
+/** Minor units -> plain decimal string, no symbol. Used in text inputs. */
+export function toDecimalString(minor: number, currency = 'USD'): string {
+  return (minor / minorUnitsPer(currency)).toFixed(decimalsFor(currency));
 }
 
 /**
@@ -45,7 +65,7 @@ export function formatMoney(
 ): string {
   const { signed = false, compact = false } = options;
   const digits = decimalsFor(currency);
-  const value = cents / MINOR_UNITS_PER_MAJOR;
+  const value = cents / minorUnitsPer(currency);
   let body: string;
   try {
     body = new Intl.NumberFormat(locale, {

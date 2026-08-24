@@ -18,6 +18,14 @@ import type { RecurringRule, Settings } from '../types.ts';
 /** iOS caps pending local notifications at 64; stay well inside that. */
 const MAX_SCHEDULED = 32;
 
+/**
+ * Two Android channels, because importance can only be set when a channel is
+ * created — changing it later is ignored by the system. A rule marked as an
+ * alarm goes to the loud channel; everything else stays a quiet banner.
+ */
+const CHANNEL_DEFAULT = 'bills';
+const CHANNEL_ALARM = 'bills-alarm';
+
 /** How far ahead reminders are scheduled. Re-synced on every app launch. */
 const HORIZON_DAYS = 120;
 
@@ -75,16 +83,28 @@ export async function syncReminders(
 
   if (Platform.OS === 'android') {
     try {
-      await Notifications.setNotificationChannelAsync('bills', {
+      await Notifications.setNotificationChannelAsync(CHANNEL_DEFAULT, {
         name: 'Bill reminders',
         importance: Notifications.AndroidImportance.DEFAULT,
+      });
+      await Notifications.setNotificationChannelAsync(CHANNEL_ALARM, {
+        name: 'Bill alarms',
+        description: 'Loud reminders for bills you cannot afford to miss.',
+        importance: Notifications.AndroidImportance.MAX,
+        sound: 'default',
+        vibrationPattern: [0, 400, 200, 400],
+        enableVibrate: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
     } catch {
       // Channel setup is best-effort.
     }
   }
 
-  const due = upcoming(rules, HORIZON_DAYS, asOf).filter((item) => item.rule.reminderDaysBefore > 0);
+  // An alarm rule is worth a notification on the day even with no lead time.
+  const due = upcoming(rules, HORIZON_DAYS, asOf).filter(
+    (item) => item.rule.reminderDaysBefore > 0 || item.rule.alarm
+  );
   let scheduled = 0;
 
   for (const item of due) {
@@ -96,17 +116,26 @@ export async function syncReminders(
 
     const amount = formatMoney(item.rule.amount, settings.currency, settings.locale);
     const when = formatDateLabel(item.date, settings.locale);
+    const isAlarm = item.rule.alarm;
     try {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: item.rule.kind === 'income' ? `${item.rule.name} arrives soon` : `${item.rule.name} is due soon`,
           body: `${amount} on ${when}`,
           data: { ruleId: item.rule.id, date: item.date },
+          sound: isAlarm ? 'default' : undefined,
+          // Time-sensitive alerts break through iOS Focus modes; ordinary
+          // reminders should not, or every bill becomes an interruption.
+          interruptionLevel: isAlarm ? 'timeSensitive' : 'active',
+          priority: isAlarm
+            ? Notifications.AndroidNotificationPriority.MAX
+            : Notifications.AndroidNotificationPriority.DEFAULT,
+          vibrate: isAlarm ? [0, 400, 200, 400] : undefined,
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: fireAt,
-          channelId: 'bills',
+          channelId: isAlarm ? CHANNEL_ALARM : CHANNEL_DEFAULT,
         },
       });
       scheduled += 1;

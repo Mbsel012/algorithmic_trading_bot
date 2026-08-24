@@ -6,7 +6,7 @@
  * than allowed to crash a screen later.
  */
 
-import { DEFAULT_SETTINGS, SCHEMA_VERSION, createInitialData } from '../lib/defaults.ts';
+import { DEFAULT_RATES, DEFAULT_SETTINGS, SCHEMA_VERSION, createInitialData } from '../lib/defaults.ts';
 import { isValidISODate } from '../lib/dates.ts';
 import type {
   AppData,
@@ -15,8 +15,10 @@ import type {
   Frequency,
   Goal,
   GoalContribution,
+  RateTable,
   RecurringRule,
   Settings,
+  TaxMode,
   ThemePreference,
   Transaction,
   TxKind,
@@ -24,6 +26,7 @@ import type {
 
 const FREQUENCIES: Frequency[] = ['weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'];
 const THEMES: ThemePreference[] = ['system', 'light', 'dark'];
+const TAX_MODES: TaxMode[] = ['inclusive', 'exclusive'];
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -81,12 +84,27 @@ function parseTransaction(raw: unknown, knownCategories: Set<string>): Transacti
     categoryId,
     date,
     note: str(raw.note),
+    ...(parseOriginal(raw.original) ? { original: parseOriginal(raw.original)! } : {}),
+    ...(typeof raw.taxAmount === 'number' && Number.isFinite(raw.taxAmount)
+      ? { taxAmount: Math.max(0, Math.round(raw.taxAmount)) }
+      : {}),
     // Only set the key when there is a link, so a round trip through JSON
     // gives back an object that deep-equals the original.
     ...(typeof raw.recurringId === 'string' ? { recurringId: raw.recurringId } : {}),
     createdAt: str(raw.createdAt, now),
     updatedAt: str(raw.updatedAt, now),
   };
+}
+
+/** The as-entered foreign amount, dropped entirely if any part is unusable. */
+function parseOriginal(raw: unknown): { amount: number; currency: string; rate: number } | null {
+  if (!isObject(raw)) return null;
+  const currency = str(raw.currency).toUpperCase();
+  const amount = cents(raw.amount, Number.NaN);
+  const rate = typeof raw.rate === 'number' ? raw.rate : Number.NaN;
+  if (!/^[A-Z]{3}$/.test(currency)) return null;
+  if (!Number.isFinite(amount) || !Number.isFinite(rate) || rate <= 0) return null;
+  return { amount: Math.abs(amount), currency, rate };
 }
 
 function parseBudget(raw: unknown, knownCategories: Set<string>): Budget | null {
@@ -117,6 +135,8 @@ function parseRecurring(raw: unknown, knownCategories: Set<string>): RecurringRu
     lastPostedDate: isoDate(raw.lastPostedDate, null),
     autoPost: bool(raw.autoPost, true),
     reminderDaysBefore: Math.min(30, Math.max(0, reminder)),
+    alarm: bool(raw.alarm, false),
+    addToCalendar: bool(raw.addToCalendar, false),
     active: bool(raw.active, true),
   };
 }
@@ -154,15 +174,46 @@ function parseSettings(raw: unknown): Settings {
   const monthStartDay = cents(raw.monthStartDay, DEFAULT_SETTINGS.monthStartDay);
   const hour = cents(raw.reminderHour, DEFAULT_SETTINGS.reminderHour);
   const minute = cents(raw.reminderMinute, DEFAULT_SETTINGS.reminderMinute);
+  const taxRate = typeof raw.taxRate === 'number' && Number.isFinite(raw.taxRate) ? raw.taxRate : 0;
+  const country = str(raw.countryCode).toUpperCase();
   return {
     currency: str(raw.currency, DEFAULT_SETTINGS.currency).toUpperCase().slice(0, 3) || 'USD',
     locale: str(raw.locale, DEFAULT_SETTINGS.locale),
     theme: oneOf<ThemePreference>(raw.theme, THEMES, 'system'),
+    countryCode: /^[A-Z]{2}$/.test(country) ? country : null,
+    taxRate: Math.min(100, Math.max(0, taxRate)),
+    taxLabel: str(raw.taxLabel, DEFAULT_SETTINGS.taxLabel) || 'Tax',
+    taxMode: oneOf<TaxMode>(raw.taxMode, TAX_MODES, 'inclusive'),
+    calendarEnabled: bool(raw.calendarEnabled, false),
+    calendarId: typeof raw.calendarId === 'string' && raw.calendarId ? raw.calendarId : null,
+    onlineRatesEnabled: bool(raw.onlineRatesEnabled, false),
     monthStartDay: Math.min(28, Math.max(1, monthStartDay)),
     remindersEnabled: bool(raw.remindersEnabled, DEFAULT_SETTINGS.remindersEnabled),
     reminderHour: Math.min(23, Math.max(0, hour)),
     reminderMinute: Math.min(59, Math.max(0, minute)),
     onboarded: bool(raw.onboarded),
+  };
+}
+
+/** Exchange rates, with every unusable entry discarded. */
+function parseRates(raw: unknown): RateTable {
+  if (!isObject(raw)) return { ...DEFAULT_RATES, rates: { ...DEFAULT_RATES.rates } };
+  const base = str(raw.base, 'USD').toUpperCase();
+  const validBase = /^[A-Z]{3}$/.test(base) ? base : 'USD';
+  const rates: Record<string, number> = { [validBase]: 1 };
+  if (isObject(raw.rates)) {
+    for (const [code, rate] of Object.entries(raw.rates)) {
+      const upper = code.trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(upper)) continue;
+      if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) continue;
+      rates[upper] = rate;
+    }
+  }
+  return {
+    base: validBase,
+    rates,
+    updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : null,
+    source: raw.source === 'network' ? 'network' : 'manual',
   };
 }
 
@@ -176,7 +227,7 @@ export function normalise(raw: unknown, makeId: () => string): AppData {
   // A ledger with no categories cannot be rendered; fall back to a fresh start.
   if (categories.length === 0) {
     const fresh = createInitialData(makeId);
-    return { ...fresh, settings: parseSettings(raw.settings) };
+    return { ...fresh, rates: parseRates(raw.rates), settings: parseSettings(raw.settings) };
   }
 
   const ids = new Set(categories.map((c) => c.id));
@@ -200,6 +251,7 @@ export function normalise(raw: unknown, makeId: () => string): AppData {
     budgets,
     recurring,
     goals,
+    rates: parseRates(raw.rates),
     settings: parseSettings(raw.settings),
   };
 }

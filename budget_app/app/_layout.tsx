@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LockScreen } from '../src/components/LockScreen.tsx';
+import { syncCalendar } from '../src/lib/calendar.ts';
 import { today } from '../src/lib/dates.ts';
 import { installNotificationHandler, syncReminders } from '../src/lib/notifications.ts';
 import { LockProvider, useLock } from '../src/state/lockContext.tsx';
@@ -20,6 +21,13 @@ function RootNavigator() {
     installNotificationHandler();
     void syncReminders(data.recurring, data.settings, today());
   }, [ready, data.recurring, data.settings.remindersEnabled, data.settings.reminderHour, data.settings.reminderMinute]);
+
+  // Keep the calendar in step with the rules. Cheap when nothing changed —
+  // syncCalendar updates events in place rather than recreating them.
+  useEffect(() => {
+    if (!ready || !data.settings.calendarEnabled) return;
+    void syncCalendar(data.recurring, data.settings);
+  }, [ready, data.recurring, data.settings.calendarEnabled, data.settings.calendarId, data.settings.currency]);
 
   return (
     <>
@@ -43,6 +51,7 @@ function RootNavigator() {
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         <Stack.Screen name="lock-setup" options={{ presentation: 'modal', headerShown: false }} />
         <Stack.Screen name="about" options={{ title: 'About' }} />
+        <Stack.Screen name="converter" options={{ title: 'Currency converter' }} />
       </Stack>
     </>
   );

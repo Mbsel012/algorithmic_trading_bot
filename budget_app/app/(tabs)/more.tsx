@@ -32,6 +32,15 @@ export default function MoreScreen() {
       href: '/recurring',
     },
     {
+      icon: '💱',
+      title: 'Currency converter',
+      subtitle:
+        data.rates.updatedAt === null
+          ? 'Convert between currencies'
+          : `${Object.keys(data.rates.rates).length} rates · base ${data.rates.base}`,
+      href: '/converter',
+    },
+    {
       icon: '🏷️',
       title: 'Categories',
       subtitle: `${data.categories.filter((c) => !c.archived).length} in use`,

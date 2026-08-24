@@ -46,6 +46,8 @@ export default function RecurringEditorScreen() {
   const [endDate, setEndDate] = useState<ISODate | null>(existing?.endDate ?? null);
   const [autoPost, setAutoPost] = useState(existing?.autoPost ?? true);
   const [reminderDaysBefore, setReminderDaysBefore] = useState(existing?.reminderDaysBefore ?? 1);
+  const [alarm, setAlarm] = useState(existing?.alarm ?? false);
+  const [addToCalendar, setAddToCalendar] = useState(existing?.addToCalendar ?? false);
   const [active, setActive] = useState(existing?.active ?? true);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,6 +89,8 @@ export default function RecurringEditorScreen() {
       lastPostedDate: existing && existing.startDate === startDate ? existing.lastPostedDate : null,
       autoPost,
       reminderDaysBefore,
+      alarm,
+      addToCalendar,
       active,
     };
 
@@ -199,6 +203,43 @@ export default function RecurringEditorScreen() {
             ))}
           </Row>
         </Field>
+
+        <Card style={{ marginBottom: spacing.lg }}>
+          <Row justify="space-between">
+            <View style={{ flex: 1, paddingRight: spacing.md }}>
+              <Txt variant="body">Ring like an alarm</Txt>
+              <Txt variant="caption" tone="faint">
+                Sound and vibration, and it breaks through Do Not Disturb. For the
+                bills you cannot afford to miss.
+              </Txt>
+            </View>
+            <Switch
+              value={alarm}
+              onValueChange={setAlarm}
+              trackColor={{ true: theme.colors.primary, false: theme.colors.track }}
+            />
+          </Row>
+          <Spacer size={spacing.md} />
+          <Row justify="space-between">
+            <View style={{ flex: 1, paddingRight: spacing.md }}>
+              <Txt variant="body">Add to my calendar</Txt>
+              <Txt variant="caption" tone="faint">
+                Puts the whole repeating series in your device calendar, so the
+                reminder survives even if you uninstall the app.
+              </Txt>
+            </View>
+            <Switch
+              value={addToCalendar}
+              onValueChange={setAddToCalendar}
+              trackColor={{ true: theme.colors.primary, false: theme.colors.track }}
+            />
+          </Row>
+          {addToCalendar && !data.settings.calendarEnabled ? (
+            <Txt variant="caption" tone="warning" style={{ marginTop: spacing.md }}>
+              Calendar syncing is off in Settings — turn it on for this to take effect.
+            </Txt>
+          ) : null}
+        </Card>
 
         {existing && preview ? (
           <Txt variant="caption" tone="faint" style={{ marginBottom: spacing.lg }}>

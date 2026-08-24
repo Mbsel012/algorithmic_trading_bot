@@ -103,14 +103,21 @@ export function AmountField({
   onChangeText,
   autoFocus = false,
   tone,
+  currency,
+  onPressCurrency,
 }: {
   value: string;
   onChangeText: (value: string) => void;
   autoFocus?: boolean;
   tone?: 'positive' | 'negative';
+  /** Overrides the home currency, for entering a foreign amount. */
+  currency?: string;
+  /** When given, the currency label becomes a button. */
+  onPressCurrency?: () => void;
 }) {
   const theme = useTheme();
   const { data } = useApp();
+  const code = currency ?? data.settings.currency;
   const color =
     tone === 'positive' ? theme.colors.positive : tone === 'negative' ? theme.colors.negative : theme.colors.text;
   return (
@@ -125,9 +132,18 @@ export function AmountField({
         paddingHorizontal: spacing.md,
       }}
     >
-      <Text style={{ fontSize: 20, fontWeight: '600', color: theme.colors.textMuted }}>
-        {data.settings.currency}
-      </Text>
+      <Pressable onPress={onPressCurrency} disabled={!onPressCurrency} hitSlop={8}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: '600',
+            color: onPressCurrency ? theme.colors.primary : theme.colors.textMuted,
+          }}
+        >
+          {code}
+          {onPressCurrency ? ' ▾' : ''}
+        </Text>
+      </Pressable>
       <TextInput
         value={value}
         onChangeText={(next) => onChangeText(next.replace(/[^0-9.,-]/g, ''))}

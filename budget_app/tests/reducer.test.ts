@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { reducer, sortedTransactions } from '../src/state/reducer.ts';
 import type { AppData, Category, RecurringRule, Transaction } from '../src/types.ts';
-import { DEFAULT_SETTINGS } from '../src/lib/defaults.ts';
+import { DEFAULT_RATES, DEFAULT_SETTINGS } from '../src/lib/defaults.ts';
 
 const categories: Category[] = [
   { id: 'food', name: 'Food', icon: '🍽️', color: '#f00', kind: 'expense', archived: false },
@@ -18,6 +18,7 @@ function state(overrides: Partial<AppData> = {}): AppData {
     budgets: [],
     recurring: [],
     goals: [],
+    rates: { ...DEFAULT_RATES, rates: { ...DEFAULT_RATES.rates } },
     settings: { ...DEFAULT_SETTINGS },
     ...overrides,
   };
@@ -62,7 +63,7 @@ test('deleting a category with a replacement moves its rows across', () => {
       {
         id: 'r', name: 'Lunch', amount: 500, kind: 'expense', categoryId: 'food',
         frequency: 'weekly', startDate: '2026-01-01', endDate: null, lastPostedDate: null,
-        autoPost: true, reminderDaysBefore: 0, active: true,
+        autoPost: true, reminderDaysBefore: 0, alarm: false, addToCalendar: false, active: true,
       },
     ],
   });
@@ -97,7 +98,7 @@ test('a budget of zero clears the budget rather than storing a zero limit', () =
 const rule: RecurringRule = {
   id: 'r1', name: 'Rent', amount: 120000, kind: 'expense', categoryId: 'food',
   frequency: 'monthly', startDate: '2026-01-01', endDate: null, lastPostedDate: null,
-  autoPost: true, reminderDaysBefore: 2, active: true,
+  autoPost: true, reminderDaysBefore: 2, alarm: false, addToCalendar: false, active: true,
 };
 
 test('auto-post writes missed occurrences into the ledger once', () => {
@@ -151,4 +152,14 @@ test('transactions sort newest first with a stable tiebreak', () => {
     { ...tx('c'), date: '2026-03-01', createdAt: '2026-03-01T12:00:00Z' },
   ];
   assert.deepEqual(sortedTransactions(rows).map((t) => t.id), ['b', 'c', 'a']);
+});
+
+test('setting the rate table replaces it wholesale', () => {
+  const next = reducer(state(), {
+    type: 'rates/set',
+    table: { base: 'EUR', rates: { EUR: 1, USD: 1.08 }, updatedAt: 'T', source: 'network' },
+  });
+  assert.equal(next.rates.base, 'EUR');
+  assert.equal(next.rates.rates.USD, 1.08);
+  assert.equal(next.rates.source, 'network');
 });
