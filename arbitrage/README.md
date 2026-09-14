@@ -8,9 +8,57 @@ specification, so convergence is contractual rather than probabilistic and the
 return is known at entry. The binding constraint is capital, not speed — which
 is precisely the constraint an individual can supply.
 
-## Quick start
+## Setup
 
-No API keys, no third-party packages. Python 3.9+ and `requests` only.
+**Nothing to install but Python.** This package is pure standard library -- no
+`pip install` step, no API keys, no accounts. Python 3.9 or newer.
+
+### Windows
+
+1. Install Python from https://www.python.org/downloads/ -- **tick "Add python.exe
+   to PATH"** on the first screen of the installer.
+2. Open PowerShell (Start menu, type `powershell`).
+3. Run:
+
+```powershell
+git clone https://github.com/Mbsel012/algorithmic_trading_bot.git
+cd algorithmic_trading_bot
+git checkout claude/hood-arbitrage-trading-wacu3d
+python -m arbitrage.cli --demo
+```
+
+If you already have the repo, just `cd` into it and run the last two lines.
+No `git`? Download the branch as a ZIP from GitHub and unzip it instead.
+
+### macOS / Linux
+
+```bash
+git clone https://github.com/Mbsel012/algorithmic_trading_bot.git
+cd algorithmic_trading_bot
+git checkout claude/hood-arbitrage-trading-wacu3d
+python3 -m arbitrage.cli --demo
+```
+
+Use `python3` in place of `python` throughout on macOS and Linux.
+
+### Verify it works
+
+`--demo` should print a scan table. If it does, the install is good.
+Then run the test suite -- 39 tests, about a second:
+
+```
+python -m unittest discover -s arbitrage -t .
+```
+
+### Troubleshooting
+
+| Message | Fix |
+|---|---|
+| `python: command not found` | Python not installed, or not on PATH. Reinstall and tick "Add to PATH" |
+| `No module named arbitrage` | You are in the wrong folder. `cd` into `algorithmic_trading_bot` first |
+| `could not reach ...` on a live scan | Network, firewall, or a region that blocks the venue. Use `--manual` |
+
+## Quick start
 
 ```bash
 python -m arbitrage.cli --demo      # synthetic quotes, no network

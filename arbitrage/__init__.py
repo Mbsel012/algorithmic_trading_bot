@@ -10,6 +10,8 @@ The return is known at entry; the binding constraint is capital, not speed.
 
 This package deliberately stops at analysis and monitoring. Live order placement
 is a separate, later step that requires API keys and testnet validation.
+
+Pure standard library: no third-party packages are required to run it.
 """
 
 __all__ = ["basis", "fees", "sessions", "venues", "scanner"]
