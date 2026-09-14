@@ -5,8 +5,10 @@ from datetime import datetime, timedelta, timezone
 
 from arbitrage import fees, sessions
 from arbitrage.basis import (
-    BasisQuote, annualise, evaluate, gross_basis, liquidation_move, position_size,
+    BasisQuote, annualise, evaluate, expected_profit, gross_basis,
+    liquidation_move, position_size,
 )
+from arbitrage.cli import parse_manual
 from arbitrage.scanner import report, safety_check, scan
 
 
@@ -102,6 +104,60 @@ class TestSizingAndLiquidation(unittest.TestCase):
         self.assertFalse(tight["safe"])
         self.assertTrue(loose["safe"])
         self.assertIn("TOO TIGHT", tight["note"])
+
+
+class TestExpectedProfit(unittest.TestCase):
+
+    def setUp(self):
+        self.result = evaluate(
+            BasisQuote("binance", "T", 100_000.0, 103_000.0, 90.0), fee_cost=0.003)
+
+    def test_profit_is_net_basis_on_notional(self):
+        p = expected_profit(self.result, 15_000.0, margin_ratio=0.5)
+        self.assertAlmostEqual(p["notional"], 10_000.0)
+        self.assertAlmostEqual(p["profit_at_expiry"], 10_000.0 * self.result.net_basis)
+
+    def test_return_on_capital_is_below_headline_basis(self):
+        # Idle collateral means capital always earns less than notional does.
+        p = expected_profit(self.result, 15_000.0, margin_ratio=0.5)
+        self.assertLess(p["annualised_on_capital"], self.result.annualised_net)
+        self.assertGreater(p["collateral_drag"], 0)
+
+    def test_lower_leverage_drags_returns_more(self):
+        light = expected_profit(self.result, 15_000.0, margin_ratio=1.0)   # 1x
+        heavy = expected_profit(self.result, 15_000.0, margin_ratio=0.2)   # 5x
+        self.assertGreater(heavy["annualised_on_capital"], light["annualised_on_capital"])
+        self.assertGreater(light["collateral_drag"], heavy["collateral_drag"])
+
+    def test_zero_capital_is_safe(self):
+        p = expected_profit(self.result, 0.0, margin_ratio=0.5)
+        self.assertEqual(p["return_on_capital"], 0.0)
+
+
+class TestParseManual(unittest.TestCase):
+
+    def test_valid_spec(self):
+        q = parse_manual("Binance:BTC-DEC:100000:103100:103")
+        self.assertEqual(q.venue, "binance")
+        self.assertEqual(q.symbol, "BTC-DEC")
+        self.assertAlmostEqual(q.spot, 100_000.0)
+        self.assertAlmostEqual(q.future, 103_100.0)
+        self.assertAlmostEqual(q.days_to_expiry, 103.0)
+
+    def test_wrong_field_count_rejected(self):
+        for bad in ("a:b:c:d", "a:b:c:d:e:f", ""):
+            with self.assertRaises(ValueError):
+                parse_manual(bad)
+
+    def test_non_numeric_rejected(self):
+        with self.assertRaises(ValueError):
+            parse_manual("binance:BTC:abc:103100:103")
+
+    def test_nonpositive_spot_and_days_rejected(self):
+        with self.assertRaises(ValueError):
+            parse_manual("binance:BTC:0:103100:103")
+        with self.assertRaises(ValueError):
+            parse_manual("binance:BTC:100000:103100:0")
 
 
 class TestFees(unittest.TestCase):

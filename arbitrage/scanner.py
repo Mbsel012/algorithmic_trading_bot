@@ -10,7 +10,7 @@ useful answer, and it is the answer that keeps capital intact.
 from datetime import datetime, timezone
 
 from . import fees, sessions
-from .basis import evaluate, liquidation_move, position_size
+from .basis import evaluate, expected_profit, liquidation_move, position_size
 
 
 def scan(quotes, hurdle=0.04, risk_premium=0.03, close_early=False):
@@ -96,6 +96,7 @@ def report(quotes, capital=10000.0, hurdle=0.04, risk_premium=0.03,
         "results": ranked,
         "best": best,
         "safety": safety_check(best, capital, margin_ratio) if best else None,
+        "profit": expected_profit(best, capital, margin_ratio) if best else None,
         "verdict": (
             f"{len(tradeable)} opportunity(ies) clear the hurdle"
             if tradeable
@@ -160,6 +161,17 @@ def format_report(data):
                 f"    liquidation at     {safety['liquidation_price']:,.2f}"
                 f"  (+{safety['liquidation_move_pct']:.1f}%)",
                 f"    {safety['note']}",
+            ]
+        profit = data.get("profit")
+        if profit:
+            lines += [
+                "",
+                f"  Money, if held to expiry:",
+                f"    profit             {profit['profit_at_expiry']:,.2f}",
+                f"    return on capital  {profit['return_on_capital'] * 100:.2f}%"
+                f"  ({profit['annualised_on_capital'] * 100:.2f}% p.a.)",
+                f"    collateral drag    {profit['collateral_drag'] * 100:.2f}% p.a."
+                f"  (idle margin, not a fee)",
             ]
 
     lines.append("=" * 78)

@@ -155,6 +155,32 @@ def evaluate(quote, fee_cost, hurdle=0.04, risk_premium=0.03, close_early=False)
     )
 
 
+def expected_profit(result, capital, margin_ratio=0.5):
+    """
+    Translate a net basis into money, on the capital actually committed.
+
+    The distinction matters. The basis is earned on *notional*, but collateral
+    posted against the short futures leg earns nothing while it sits there. So
+    return on capital is always lower than the headline basis, by a factor of
+    (1 + margin_ratio). At 2x that is a third of the return given up to margin.
+
+    :param result: BasisResult under consideration.
+    :param capital: total capital committed to both legs.
+    :param margin_ratio: collateral posted per unit of futures notional.
+    :return: dict of notional, absolute profit, and returns on capital.
+    """
+    notional, _, _ = position_size(capital, margin_ratio)
+    profit = notional * result.net_basis
+    return_on_capital = profit / capital if capital else 0.0
+    return {
+        "notional": notional,
+        "profit_at_expiry": profit,
+        "return_on_capital": return_on_capital,
+        "annualised_on_capital": annualise(return_on_capital, result.days_to_expiry),
+        "collateral_drag": result.annualised_net - annualise(return_on_capital, result.days_to_expiry),
+    }
+
+
 def position_size(capital, margin_ratio):
     """
     Split capital between the spot leg and the futures margin.

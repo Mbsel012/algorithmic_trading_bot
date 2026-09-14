@@ -16,6 +16,11 @@ No API keys, no third-party packages. Python 3.9+ and `requests` only.
 python -m arbitrage.cli --demo      # synthetic quotes, no network
 python -m arbitrage.cli --clock     # timing report only
 python -m arbitrage.cli --base BTC  # live public market data
+
+# Cost a trade from two prices read off any exchange screen -- no API at all:
+python -m arbitrage.cli --capital 10000 \
+  --manual binance:BTC-DEC:100000:103100:103
+
 python -m unittest discover -s arbitrage -t .
 ```
 
@@ -101,6 +106,14 @@ path there.
 
 `safety_check()` flags any configuration whose liquidation buffer is under 25%.
 
+### Collateral drag
+
+The basis is earned on *notional*, but margin posted against the short leg earns
+nothing while it sits there. Return on capital is therefore always lower than the
+headline basis, by a factor of `(1 + margin_ratio)`. At 2x, roughly a third of the
+return is given up to idle collateral. `expected_profit()` reports this explicitly
+so the headline number is never mistaken for what lands in the account.
+
 ## Scope
 
 **Analysis and monitoring only. This package places no orders and needs no API
@@ -112,7 +125,9 @@ deliberate decision to risk capital. Do not skip that sequencing.
 - [x] Basis maths, fee model, liquidation distance
 - [x] Session and structural-clock awareness
 - [x] Multi-venue scanner with honest rejection
-- [x] Test suite (31 tests, stdlib `unittest`)
+- [x] Profit projection net of collateral drag
+- [x] Manual quote entry for use without API access
+- [x] Test suite (39 tests, stdlib `unittest`)
 - [ ] Historical basis backtest — does the edge persist across regimes?
 - [ ] Bybit and Deribit adapters
 - [ ] Alerting when the basis crosses a threshold

@@ -26,6 +26,32 @@ DEMO_QUOTES = [
 ]
 
 
+def parse_manual(spec):
+    """
+    Parse a hand-typed quote of the form VENUE:LABEL:SPOT:FUTURE:DAYS.
+
+    Lets you cost a trade from prices read off any exchange screen, with no API
+    access at all.
+
+    :param spec: colon-delimited specification string.
+    :return: BasisQuote.
+    :raises ValueError: if the spec is malformed or the numbers are unusable.
+    """
+    parts = spec.split(":")
+    if len(parts) != 5:
+        raise ValueError(f"expected VENUE:LABEL:SPOT:FUTURE:DAYS, got {spec!r}")
+    venue, label, spot, future, days = parts
+    try:
+        spot, future, days = float(spot), float(future), float(days)
+    except ValueError:
+        raise ValueError(f"spot, future and days must be numbers in {spec!r}") from None
+    if spot <= 0:
+        raise ValueError(f"spot must be positive in {spec!r}")
+    if days <= 0:
+        raise ValueError(f"days must be positive in {spec!r}")
+    return BasisQuote(venue.strip().lower(), label.strip(), spot, future, days)
+
+
 def build_parser():
     """:return: configured ArgumentParser."""
     parser = argparse.ArgumentParser(
@@ -44,6 +70,10 @@ def build_parser():
     parser.add_argument("--close-early", action="store_true",
                         help="model trading out of the future instead of settling")
     parser.add_argument("--demo", action="store_true", help="use synthetic quotes, no network")
+    parser.add_argument("--manual", action="append", metavar="SPEC", default=None,
+                        help="quote typed by hand, no network needed. Repeatable. "
+                             "Format VENUE:LABEL:SPOT:FUTURE:DAYS  e.g. "
+                             "binance:BTC-DEC:100000:103100:103")
     parser.add_argument("--clock", action="store_true", help="print the timing report and exit")
     return parser
 
@@ -62,7 +92,14 @@ def main(argv=None):
             print(f"{key:>24}  {value}")
         return 0
 
-    if args.demo:
+    if args.manual:
+        try:
+            quotes = [parse_manual(spec) for spec in args.manual]
+        except ValueError as exc:
+            print(f"bad --manual spec: {exc}", file=sys.stderr)
+            return 2
+        errors = {}
+    elif args.demo:
         quotes, errors = DEMO_QUOTES, {}
         print("[demo mode] synthetic quotes - not market data\n")
     else:
