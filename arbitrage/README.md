@@ -76,12 +76,66 @@ python -m unittest discover -s arbitrage -t .
 
 | Module | Responsibility |
 |---|---|
+| `store.py` | Append-only JSONL history, shared by both monitors |
+| `premium.py` | Local MYR premium: log readings, assess persistence |
+| `pairs.py` | Pairs / stat-arb screening with a cost gate |
 | `basis.py` | Basis maths, annualisation, sizing, liquidation distance |
 | `fees.py` | Per-venue taker schedules and round-trip cost |
 | `sessions.py` | Session windows, funding times, CME gap, quarterly expiry |
 | `venues.py` | Public REST adapters (Binance, OKX) |
 | `scanner.py` | Costing, ranking, safety check, report rendering |
 | `cli.py` | Command-line entry point |
+
+## Three strategies, one stance
+
+The package now holds three screens. They answer different questions but share
+one rule: **reject by default, and make the edge prove itself net of costs.**
+
+| Screen | Question | Reachable on spot-only venues? |
+|---|---|---|
+| `scanner` | Is the dated-futures basis wide enough? | No — needs a futures venue |
+| `premium` | Is local BTC persistently dearer than global? | **Yes** |
+| `pairs` | Does this spread revert faster than it costs? | Needs a broker, not a futures venue |
+
+### Local premium
+
+```
+premium = (BTC/MYR local) / (BTC/USD global x USD/MYR) - 1
+```
+
+```bash
+python -m arbitrage.premium --demo
+python -m arbitrage.premium --manual 385000 81474.78 4.62   # log one reading
+python -m arbitrage.premium --report                        # assess history
+```
+
+Two gates, both mandatory. The **median** must clear round-trip cost — median,
+not mean, so one spike cannot carry the verdict. And the edge must clear cost on
+at least **70% of readings**, because an edge present a third of the time is not
+something you can plan around. A single wide reading is never enough; that is
+why this logs rather than merely computes.
+
+### Pairs
+
+```bash
+python -m arbitrage.pairs --demo
+python -m arbitrage.pairs --csv eurusd.csv gbpusd.csv --names EURUSD GBPUSD --cost 0.0005
+```
+
+Fits an OLS hedge ratio, measures the spread's z-score and its AR(1)
+mean-reversion half-life, then checks that the expected capture at the entry
+threshold beats a round trip on **both** legs. Rejects weak correlation,
+non-reverting spreads, half-lives over 30 observations, and any edge that costs
+more than it earns.
+
+> ⚠️ **Pairs trading is not arbitrage.** Nothing forces a spread to converge.
+> A diverging pair can stay diverged until it takes the account with it.
+>
+> ⚠️ **This is not a cointegration test.** There is no ADF statistic and no
+> Johansen procedure here — neither is implementable in the standard library at
+> the precision they need. What you get is *evidence* of stationarity. Re-check
+> anything this likes with `statsmodels` `adfuller`/`coint` before risking
+> capital. A pair that passes here and fails there will lose money.
 
 ## The maths
 
@@ -175,7 +229,10 @@ deliberate decision to risk capital. Do not skip that sequencing.
 - [x] Multi-venue scanner with honest rejection
 - [x] Profit projection net of collateral drag
 - [x] Manual quote entry for use without API access
-- [x] Test suite (39 tests, stdlib `unittest`)
+- [x] Local premium monitor with persistence gating
+- [x] Pairs screen with two-leg cost gate
+- [x] Shared append-only JSONL history
+- [x] Test suite (73 tests, stdlib `unittest`)
 - [ ] Historical basis backtest — does the edge persist across regimes?
 - [ ] Bybit and Deribit adapters
 - [ ] Alerting when the basis crosses a threshold
