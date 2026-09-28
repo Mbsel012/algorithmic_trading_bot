@@ -79,6 +79,7 @@ python -m unittest discover -s arbitrage -t .
 | `store.py` | Append-only JSONL history, shared by both monitors |
 | `premium.py` | Local MYR premium: log readings, assess persistence |
 | `pairs.py` | Pairs / stat-arb screening with a cost gate |
+| `prediction.py` | Prediction-market YES/NO sum identity, net of resolution risk |
 | `basis.py` | Basis maths, annualisation, sizing, liquidation distance |
 | `fees.py` | Per-venue taker schedules and round-trip cost |
 | `sessions.py` | Session windows, funding times, CME gap, quarterly expiry |
@@ -86,16 +87,21 @@ python -m unittest discover -s arbitrage -t .
 | `scanner.py` | Costing, ranking, safety check, report rendering |
 | `cli.py` | Command-line entry point |
 
-## Three strategies, one stance
+## Four screens, one stance
 
-The package now holds three screens. They answer different questions but share
-one rule: **reject by default, and make the edge prove itself net of costs.**
+The package holds four screens. They answer different questions but share one
+rule: **reject by default, and make the edge prove itself net of costs.**
 
-| Screen | Question | Reachable on spot-only venues? |
-|---|---|---|
-| `scanner` | Is the dated-futures basis wide enough? | No — needs a futures venue |
-| `premium` | Is local BTC persistently dearer than global? | **Yes** |
-| `pairs` | Does this spread revert faster than it costs? | Needs a broker, not a futures venue |
+| Screen | Question | Convergence forced? | Reachable without a futures venue? |
+|---|---|---|---|
+| `scanner` | Is the dated-futures basis wide enough? | Yes, by contract | No |
+| `premium` | Is local BTC persistently dearer than global? | No | **Yes** |
+| `pairs` | Does this spread revert faster than it costs? | **No** | Needs a broker |
+| `prediction` | Do the outcome legs cost less than $1.00? | Yes, by contract | **Yes** |
+
+Only two rows say *yes* in the convergence column, and only those two are
+arbitrage in the strict sense. `premium` and `pairs` are relative-value trades
+wearing the same costing discipline.
 
 ### Local premium
 
@@ -136,6 +142,60 @@ more than it earns.
 > the precision they need. What you get is *evidence* of stationarity. Re-check
 > anything this likes with `statsmodels` `adfuller`/`coint` before risking
 > capital. A pair that passes here and fails there will lose money.
+
+### Prediction markets
+
+A binary market pays $1.00 to exactly one side, so by the contract:
+
+```
+YES + NO == 1.00   at settlement
+```
+
+Buy every outcome for less than that and you hold a claim on $1.00 whichever
+way it resolves. The convergence is contractual, like a box spread — but unlike
+a box spread it needs no derivatives venue, no colocation and no minimum size.
+
+```bash
+python -m arbitrage.prediction --demo
+python -m arbitrage.prediction --manual 0.483 0.489 --days 9 --log
+python -m arbitrage.prediction --table      # highest sum worth paying, by horizon
+```
+
+Two things sink this trade, and both are modelled rather than assumed away:
+
+**Time.** The profit is locked but illiquid until resolution. The same 3% edge
+is 161% annualised over a week and 3% over a year:
+
+| Edge | Resolves in | Annualised |
+|---|---|---|
+| 3% | 7 days | 156% |
+| 3% | 30 days | 37% |
+| 3% | 180 days | 6% |
+| 3% | 365 days | 3% |
+
+**Resolution risk.** Settlement is decided by an oracle reading market wording
+that may be ambiguous or disputed. A market that resolves against the plain
+reading pays zero on a position you called riskless. So the break-even cost is
+`(1 − oracle_risk)`, **not** 1.00:
+
+| Gross edge (fees zeroed) | 0% dispute rate | 1% | 2% |
+|---|---|---|---|
+| 1% | +1.0% | 0.0% | **−1.0%** |
+| 2% | +2.0% | +1.0% | 0.0% |
+| 3% | +3.1% | +2.1% | +1.0% |
+
+At a 1-in-50 bad-resolution rate a 1% edge is net-negative and a 2% edge merely
+breaks even. `oracle_risk` defaults to 1% and is an **assumption, not a
+measurement** — replace it with your own observed rate before sizing anything.
+
+`effective_price()` walks the order book, because the touch price is what
+screenshots show and not what you pay for anything past the first few dollars.
+
+> ⚠️ **Legal status, Malaysia.** Prediction markets may fall under the Betting
+> Act 1953 and the Common Gaming Houses Act 1953 regardless of how the contract
+> is framed financially. This is a materially heavier constraint than the
+> exchange-registration question, and it is not one this repository can answer.
+> Take advice before funding an account.
 
 ## The maths
 
@@ -230,6 +290,7 @@ deliberate decision to risk capital. Do not skip that sequencing.
 - [x] Profit projection net of collateral drag
 - [x] Manual quote entry for use without API access
 - [x] Local premium monitor with persistence gating
+- [x] Prediction-market sum-identity screen with resolution-risk gating
 - [x] Pairs screen with two-leg cost gate
 - [x] Shared append-only JSONL history
 - [x] Test suite (73 tests, stdlib `unittest`)
